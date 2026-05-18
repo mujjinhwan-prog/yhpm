@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -103,6 +104,25 @@
       text-transform: uppercase;
       font-weight: 500;
     }
+    /* 금일 접속수 fixed 위젯 */
+    #visit-widget {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      background: rgba(0,0,0,0.1);
+      color: var(--gray);
+      border-radius: 8px;
+      padding: 5px 10px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      z-index: 999;
+      font-size: 11px;
+      border: 1px solid var(--border);
+    }
+    #visit-widget .vw-label { color: var(--gray); }
+    #visit-widget .vw-count { font-weight: 700; color: var(--green-dark); }
+    #visit-widget .vw-sub { display: none; }
     .badge-date {
       font-family: 'Oswald', sans-serif;
       font-size: clamp(18px, 3.5vw, 30px);
@@ -395,9 +415,9 @@
 <header>
   <div class="hd-top">
     <div class="hd-left">
-      <div class="hd-eyebrow">유한양행 마케팅부문</div>
+      <div class="hd-eyebrow">유한양행 · 마케팅부문</div>
       <h1>PM 품목 <em>검색</em></h1>
-      <p class="hd-sub">품목명 또는 PM 이름을<br>검색해주세요</p>
+      <p class="hd-sub">품목명 또는 PM 이름을 입력하면<br>담당자 정보를 즉시 찾아드립니다</p>
     </div>
     <div class="hd-badge">
       <div class="badge-dot-row">
@@ -467,7 +487,7 @@ const PM_DATA = [
   { team:"3팀", group:"내분비계",          pm:"김기신", products:["에스글리토","자디앙","안플라그","프레가발린","소론도"] },
   { team:"3팀", group:"내분비계",          pm:"민우식", products:["자디앙","트라젠타","트라듀오","산도스타틴","덴시본플러스","리스넬","덱사메타손"] },
   { team:"3팀", group:"내분비계",          pm:"차승우", products:["자디앙","에스글리토","액피오","로수메트"] },
-  { team:"3팀", group:"내분비계",          pm:"문예은", products:["자디앙","글라디엠","글라포민","메트포르민"] },
+  { team:"3팀", group:"내분비계",          pm:"문예은", products:["자디앙","글라디엠","글라포민","메트포르민","다이그린"] },
   { team:"3팀", group:"호흡기계, 비뇨기계", pm:"차홍석", products:["리알트리스","나자케어","코푸","유한엔플루","카필리아","프라카논","싱카스트","뉴팩탄","레리진","아보테리드","타다포스","이디포스","탐스날","파나스카","자프로스티","페로시아"] },
 
   { team:"4팀 (항암)", group:"항암제", pm:"구세진", products:["렉라자"] },
@@ -513,20 +533,20 @@ function render() {
   const meta = document.getElementById('resultsMeta');
   const ct = document.getElementById('countDisplay');
 
-  // 검색어가 없으면 안내 화면만 표시
-  if (!q) {
+  // 검색어도 없고 전체 탭이면 안내 화면
+  if (!q && currentTeam === '전체') {
     meta.style.display = 'none';
-    el.innerHTML = `
-      <div class="prompt-state">
-        <div class="prompt-icon">🔍</div>
-        <h2>품목명을 검색해 주세요</h2>
-        <p>검색창에 품목명 또는 PM 이름을 입력하면<br>담당 PM 정보가 표시됩니다.</p>
-      </div>`;
+    el.innerHTML = '<div class="prompt-state">'
+      + '<div class="prompt-icon">🔍</div>'
+      + '<h2>품목명을 검색하거나 팀을 선택해 주세요</h2>'
+      + '<p>검색창에 품목명 또는 PM 이름을 입력하거나<br>상단의 팀 버튼을 클릭하면 해당 팀 PM 정보가 표시됩니다.</p>'
+      + '</div>';
     return;
   }
 
   const list = PM_DATA.filter(d => {
     if (currentTeam !== '전체' && d.team !== currentTeam) return false;
+    if (!q) return true;
     return d.products.some(p => p.includes(q)) || d.pm.includes(q) || d.group.includes(q);
   });
 
@@ -534,11 +554,8 @@ function render() {
   meta.style.display = 'block';
 
   if (!list.length) {
-    el.innerHTML = `
-      <div class="empty">
-        <div class="empty-icon">😕</div>
-        <p><strong>"${q}"</strong>에 대한 결과가 없습니다.<br>다른 품목명으로 다시 검색해 보세요.</p>
-      </div>`;
+    const msg = q ? '"' + q + '"에 대한 결과가 없습니다.' : '해당 팀의 PM 정보가 없습니다.';
+    el.innerHTML = '<div class="empty"><div class="empty-icon">😕</div><p>' + msg + '</p></div>';
     return;
   }
 
@@ -589,6 +606,37 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 });
 
 render();
+
+// ── 금일 접속수 (한국시간 기준, window.storage 공유) ──
+(async function() {
+  try {
+    const KST_OFFSET = 9 * 60; // 분
+    const now = new Date();
+    const kstMs = now.getTime() + (now.getTimezoneOffset() + KST_OFFSET) * 60000;
+    const kstDate = new Date(kstMs);
+    const today = kstDate.getFullYear() + '-'
+      + String(kstDate.getMonth()+1).padStart(2,'0') + '-'
+      + String(kstDate.getDate()).padStart(2,'0');
+    const KEY = 'visits:' + today;
+
+    let count = 1;
+    try {
+      const res = await window.storage.get(KEY, true);
+      count = parseInt(res.value || '0', 10) + 1;
+    } catch(e) { count = 1; }
+
+    await window.storage.set(KEY, String(count), true);
+    const el = document.getElementById('visitCount');
+    if (el) el.textContent = count.toLocaleString() + '회';
+  } catch(e) {
+    const el = document.getElementById('visitCount');
+    if (el) el.textContent = '-';
+  }
+})();
 </script>
+<div id="visit-widget">
+  <span class="vw-label">금일 접속수 :</span>
+  <span class="vw-count"><span id="visitCount">-</span>회</span>
+</div>
 </body>
 </html>
