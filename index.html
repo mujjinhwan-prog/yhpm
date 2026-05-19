@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>YH마케팅부문 PM 품목 검색</title>
+  <title>마케팅부문 PM 품목 검색</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Oswald:wght@600&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -415,9 +415,9 @@
 <header>
   <div class="hd-top">
     <div class="hd-left">
-      <div class="hd-eyebrow">유한양행 마케팅부문</div>
+      <div class="hd-eyebrow">유한양행 · 마케팅부문</div>
       <h1>PM 품목 <em>검색</em></h1>
-      <p class="hd-sub">품목명 또는 PM 이름을<br>검색해주세요</p>
+      <p class="hd-sub">품목명 또는 PM 이름을 입력하면<br>담당자 정보를 즉시 찾아드립니다</p>
     </div>
     <div class="hd-badge">
       <div class="badge-dot-row">
@@ -431,7 +431,7 @@
   <div class="hd-search">
     <div class="search-box">
       <span class="search-ico">🔍</span>
-      <input type="text" id="searchInput" placeholder="품목명 검색 (예: 로수바미브, 리알트리스, 트윈스타...)" autocomplete="off" />
+      <input type="text" id="searchInput" placeholder="품목명 검색 (예: 자디앙, 렉라자, 로수바미브...)" autocomplete="off" />
     </div>
     <div class="filter-row">
       <button class="filter-btn active" data-team="전체">전체</button>
@@ -607,25 +607,32 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 
 render();
 
-// ── 금일 접속수 (한국시간 기준, window.storage 공유) ──
+// ── 금일 접속수 (한국시간 기준, Firebase Realtime Database) ──
 (async function() {
+  const DB_URL = 'https://yuhan-pm-search-default-rtdb.asia-southeast1.firebasedatabase.app';
   try {
-    const KST_OFFSET = 9 * 60; // 분
+    const KST_OFFSET = 9 * 60;
     const now = new Date();
     const kstMs = now.getTime() + (now.getTimezoneOffset() + KST_OFFSET) * 60000;
     const kstDate = new Date(kstMs);
     const today = kstDate.getFullYear() + '-'
       + String(kstDate.getMonth()+1).padStart(2,'0') + '-'
       + String(kstDate.getDate()).padStart(2,'0');
-    const KEY = 'visits:' + today;
 
-    let count = 1;
-    try {
-      const res = await window.storage.get(KEY, true);
-      count = parseInt(res.value || '0', 10) + 1;
-    } catch(e) { count = 1; }
+    const url = DB_URL + '/visits/' + today + '.json';
 
-    await window.storage.set(KEY, String(count), true);
+    // 현재 값 읽기
+    const getRes = await fetch(url);
+    const current = await getRes.json();
+    const count = (current || 0) + 1;
+
+    // 새 값 쓰기
+    await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(count)
+    });
+
     const el = document.getElementById('visitCount');
     if (el) el.textContent = count.toLocaleString() + '회';
   } catch(e) {
