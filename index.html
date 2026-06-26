@@ -606,7 +606,7 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 
 render();
 
-// ── 금일 접속수 (한국시간 기준, Firebase Realtime Database) ──
+// ── 금일 접속수 (한국시간 기준, Firebase transaction) ──
 (async function() {
   const DB_URL = 'https://yuhan-pm-search-default-rtdb.asia-southeast1.firebasedatabase.app';
   try {
@@ -620,18 +620,39 @@ render();
 
     const url = DB_URL + '/visits/' + today + '.json';
 
-    // 현재 값 읽기
-    const getRes = await fetch(url);
-    const raw = await getRes.json();
-    const current = (typeof raw === 'number') ? raw : 0;
-    const count = current + 1;
+    // Firebase REST transaction: 조건부 쓰기로 정확한 카운팅
+    let count = 1;
+    let success = false;
+    let attempts = 0;
 
-    // 새 값 쓰기
-    await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(count)
-    });
+    while (!success && attempts < 10) {
+      attempts++;
+      // 1) 현재 값 + ETag 읽기
+      const getRes = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
+      const etag = getRes.headers.get('ETag');
+      const raw = await getRes.json();
+      const current = (typeof raw === 'number') ? raw : 0;
+      count = current + 1;
+
+      // 2) ETag 조건부 쓰기 (동시 접속 충돌 방지)
+      const putRes = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'if-match': etag
+        },
+        body: JSON.stringify(count)
+      });
+
+      if (putRes.status === 200) {
+        success = true;
+      } else if (putRes.status === 412) {
+        // 다른 사람이 먼저 썼으면 재시도
+        await new Promise(r => setTimeout(r, Math.random() * 200));
+      } else {
+        break;
+      }
+    }
 
     const el = document.getElementById('visitCount');
     if (el) el.textContent = count.toLocaleString() + '회';
