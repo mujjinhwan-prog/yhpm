@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -415,9 +414,9 @@
 <header>
   <div class="hd-top">
     <div class="hd-left">
-      <div class="hd-eyebrow">유한양행 마케팅부문</div>
+      <div class="hd-eyebrow">유한양행 · 마케팅부문</div>
       <h1>PM 품목 <em>검색</em></h1>
-      <p class="hd-sub">품목명 또는 PM 이름을<br>검색해주세요</p>
+      <p class="hd-sub">품목명 또는 PM 이름을 입력하면<br>담당자 정보를 즉시 찾아드립니다</p>
     </div>
     <div class="hd-badge">
       <div class="badge-dot-row">
@@ -623,8 +622,9 @@ render();
 
     // 현재 값 읽기
     const getRes = await fetch(url);
-    const current = await getRes.json();
-    const count = (current || 0) + 1;
+    const raw = await getRes.json();
+    const current = (typeof raw === 'number') ? raw : 0;
+    const count = current + 1;
 
     // 새 값 쓰기
     await fetch(url, {
@@ -643,7 +643,7 @@ render();
 </script>
 <div id="visit-widget">
   <span class="vw-label">금일 접속수 :</span>
-  <span class="vw-count"><span id="visitCount">-</span> 접속</span>
+  <span class="vw-count"><span id="visitCount">-</span></span>
 </div>
 </body>
 </html>
